@@ -12,6 +12,16 @@ use Throwable;
 class AuthController extends Controller
 {
 
+    /**
+     * Create a new AuthController instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('jwtauth', ['except' => ['login']]);
+    }
+
     public function register(Request $request): JsonResponse
     {
         try{
@@ -32,18 +42,9 @@ class AuthController extends Controller
     }
 
     /**
-     * Create a new AuthController instance.
-     *
-     * @return void
-     */
-    public function __construct()
-    {
-        $this->middleware('auth:api', ['except' => ['login']]);
-    }
-
-    /**
      * Get a JWT via given credentials.
      *
+     * @param Request $request
      * @return JsonResponse
      */
     public function login(Request $request): JsonResponse
@@ -57,6 +58,7 @@ class AuthController extends Controller
             ->select('id',
                 'nickname',
                 'avatar',
+                'role',
                 'password'
             )
             ->where('phone', '=', $request->get('phone'))
@@ -67,7 +69,13 @@ class AuthController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return $this->respondWithToken($token);
+        return  response()->json([
+            'message' => 'Login in successfully',
+            'role' => $user->role,
+            'access_token' => $token,
+        ], status: 200);
+
+//        return $this->respondWithToken($token);
     }
 
     /**

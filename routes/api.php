@@ -20,11 +20,11 @@ use Illuminate\Support\Facades\Route;
 //});
 
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
 Route::get('/data', [AuthController::class, 'processData']);
 Route::group([
-    'middleware' => 'api',
+    'middleware' => ['api', 'cors'],
 ], function () {
+    Route::post('/login', [AuthController::class, 'login']);
     Route::get('/logout', [AuthController::class, 'logout']);
     Route::get('/data', [AuthController::class, 'processData']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
