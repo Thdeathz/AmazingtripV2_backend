@@ -27,6 +27,7 @@ class Users extends Authenticatable implements JWTSubject
 
     protected $hidden = [
         'password',
+        'refresh_token',
     ];
 
     // Rest omitted for brevity

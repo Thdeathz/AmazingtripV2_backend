@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('avatar')->nullable();
             $table->string('nickname', 50);
             $table->smallInteger('role')->default(2)->comment('UserRoleEnum');
+            $table->longText('refresh_token')->nullable();
             $table->timestamps();
         });
     }

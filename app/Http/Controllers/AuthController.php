@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -19,7 +20,7 @@ class AuthController extends Controller
      */
     public function __construct()
     {
-        $this->middleware('jwtauth', ['except' => ['login']]);
+        $this->middleware('jwtauth', ['except' => ['login', 'register']]);
     }
 
     public function register(Request $request): JsonResponse
@@ -27,7 +28,7 @@ class AuthController extends Controller
         try{
             $user = $request->except( 'password');
             $user['password'] = Hash::make($request->get('password'));
-            Users::create($user);
+            Users::query()->create($user);
             return response()->json([
                 'status' => 200,
                 'message' => 'Register successfully'
@@ -50,16 +51,14 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->only(['phone', 'password']);
-        if (!$token = auth()->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
 
         $user = Users::query()
             ->select('id',
                 'nickname',
                 'avatar',
                 'role',
-                'password'
+                'password',
+                'refresh_token',
             )
             ->where('phone', '=', $request->get('phone'))
             ->first();
@@ -69,11 +68,23 @@ class AuthController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        // set new access token
+        if (!$token = auth()->setTTL(1)->attempt($credentials)) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        // set new refresh token
+        $refresh_token = auth()->claims(['sid' => $user->id])->setTTL(2)->fromUser($user);
+        $user->refresh_token = $refresh_token;
+        $user->save();
+
+        $cookie = cookie('jwt', $refresh_token, 2);
+
         return  response()->json([
             'message' => 'Login in successfully',
             'role' => $user->role,
             'access_token' => $token,
-        ], status: 200);
+        ], status: 200)->withCookie($cookie);
 
 //        return $this->respondWithToken($token);
     }
@@ -91,13 +102,20 @@ class AuthController extends Controller
     /**
      * Log the user out (Invalidate the token).
      *
+     * @param Request $request
      * @return JsonResponse
      */
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
-        auth()->logout();
+        auth()->setTTL(1)->refresh();
+        $cookie = cookie('jwt', null, -1);
+        Users::query()
+            ->where('id', $request->get('id'))
+            ->update(['refresh_token' => null]);
 
-        return response()->json(['message' => 'Successfully logged out']);
+        return response()->json([
+            'message' => 'Successfully logged out'
+        ])->withCookie($cookie);
     }
 
     /**
@@ -107,7 +125,7 @@ class AuthController extends Controller
      */
     public function refresh(): JsonResponse
     {
-        return $this->respondWithToken(auth()->refresh());
+        return $this->respondWithToken(auth()->setTTL(1)->refresh());
     }
 
     /**
